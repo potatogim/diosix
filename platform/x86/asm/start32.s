@@ -62,6 +62,7 @@ start32:
   call test_cpuid_present
   call test_x86_64_present
   call test_sse_present
+  call test_vmx_present
 
 ; acknowledge we've got this far
   mov edx, boot_tests_complete_msg
@@ -178,6 +179,22 @@ test_sse_present:
 .missing_SSE:
   mov edx, boot_error_no_sse
   jmp boot_early_error
+
+; test_vmx_present
+;
+; Make sure hardware virtualization (VT-x) support is present 
+;
+test_vmx_present:
+  mov eax, 0x1		; request CPU features
+  cpuid
+  bt ecx, 0x5		; bit 5 is set when VMX is present
+  jc .present
+
+  mov edx, boot_error_no_vmx
+  jmp boot_early_error
+
+.present:
+  ret
 
 ; --------------------- set up paging ---------------------
 
@@ -358,6 +375,9 @@ boot_error_no_cpuid:
 boot_error_no_sse:
 boot_error_no_64bit:
   db "Oh no. This machine's processor is too old for this kernel.",0
+
+boot_error_no_vmx:
+  db "Oh no. We really need hardware virtualization support.",0
 
 boot_error_halting:
   db "Sorry! Can't go any further - halting boot process.",0

@@ -39,13 +39,7 @@ start64:
   mov rax, 0x0a650a6e0a6f0a44
   mov qword [0xb8000 + (3 * 160)], rax
 
-; sense if we've got hardware virtualization in the CPU
-  mov eax, 1
-  cpuid
-  bt ecx, 5
-  jnc no_vmx
-
-; virtualization hardware support detected - make a note on-screen
+; show that virtualization has been enabled
   mov rax, 0x0e740e720e690e56
   mov qword [0xb8000 + (4 * 160)], rax
 

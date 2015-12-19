@@ -47,18 +47,6 @@ pub extern fn kmain()
 
     /* initialize physical memory */
     hardware::physmem::init().ok().expect("failed during physical mem init");
-    
-    kprintln!("\nSoak testing dynamic memory manager... ");
-    for outer in 0..1024
-    {   
-        for inner in 1..4
-        {
-            let size = inner * 8 * 6;
-            let ptr = kalloc!(size).ok().expect("failed in alloc");
-            kfree!(ptr).ok().expect("failed in dealloc");
-        }
-    }
-    kprintln!("...done");
 }
 
 /* handle panics by writing to the debug log and bailing out */
