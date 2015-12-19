@@ -47,6 +47,10 @@ run: $(iso)
 run-headless: $(iso)
 	@timeout --preserve-status --foreground 10s qemu-system-x86_64 -cpu qemu64 -nographic -cdrom $(iso) -no-reboot
 
+run-bochs: $(iso)
+	@timeout --preserve-status --signal=SIGKILL --foreground 10s bochs -qf bochs/bochs.cfg 
+	@reset
+
 gdb: $(iso)
 	@qemu-system-x86_64 -nographic -s -S -cdrom $(iso) -no-reboot
 
