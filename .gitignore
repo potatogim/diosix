@@ -5,6 +5,5 @@
 *.bin
 *.iso
 *.lock
-*.log
-*.serial
+*.output
 

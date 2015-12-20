@@ -14,6 +14,9 @@ global kernel_start_addr, kernel_end_addr
 global boot_pml4_ptr
 global boot_pd_table, boot_pt0_table, boot_pt1_table
 
+; expose VMX info, too
+global vmx_revision, vmx_region_size
+
 ; needed to check for stack overflow
 global boot_stack_bottom
 
@@ -180,6 +183,7 @@ test_sse_present:
   mov edx, boot_error_no_sse
   jmp boot_early_error
 
+
 ; test_vmx_present
 ;
 ; Make sure hardware virtualization (VT-x) support is present 
@@ -193,7 +197,17 @@ test_vmx_present:
   mov edx, boot_error_no_vmx
   jmp boot_early_error
 
+IA32_VMX_BASIC		equ 0x480
+
 .present:
+; read some basic info about the VMX environment
+  mov ecx, IA32_VMX_BASIC
+  rdmsr
+  mov ecx, vmx_revision		; stash the VMX revision nr for later use
+  mov [ecx], eax
+  mov ecx, vmx_region_size	; VMXON region / VMCS size in bytes (up to 4096)
+  and edx, 4096 - 1
+  mov [ecx], edx
   ret
 
 ; --------------------- set up paging ---------------------
@@ -424,6 +438,12 @@ boot_stack_top:
 ; stash a pointer to the boot PML4 table
 boot_pml4_ptr:
   resb 8
+
+; basic descriptor of the VMX environment
+vmx_revision:
+  resb 4
+vmx_region_size:
+  resb 4
 
 ; somewhere to stash a copy of start and end addresses of the kernel,
 ; according to the linker.

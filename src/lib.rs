@@ -47,6 +47,10 @@ pub extern fn kmain()
 
     /* initialize physical memory */
     hardware::physmem::init().ok().expect("failed during physical mem init");
+
+
+
+    kprintln!("\nHalting kernel...");
 }
 
 /* handle panics by writing to the debug log and bailing out */

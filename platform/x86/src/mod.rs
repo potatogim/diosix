@@ -16,6 +16,9 @@ mod exceptions;
 mod swis;
 mod multiboot;
 mod paging;
+
+/* defines kalloc_phys_page! and kfree_phys_page! */
+#[macro_use]
 mod pgstack;
 
 /* can be called from the portable kernel */
