@@ -42,7 +42,7 @@ clean:
 	@cargo clean
 
 run: $(iso)
-	@timeout --preserve-status --signal=HUP --foreground 10s bochs -qf bochs/bochs.cfg 
+	@timeout --preserve-status --signal=HUP --foreground 4s bochs -qf bochs/bochs.cfg 
 
 iso: $(iso)
 

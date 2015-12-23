@@ -13,6 +13,11 @@
 /* turn off some of the warnings that fire false positives */
 #![allow(unused_assignments, unused_imports)]
 
+/* needed for Box heap objects */
+#![feature(box_syntax, box_patterns)]
+#[lang = "owned_box"]
+pub struct Box<T>(*mut T);
+
 /* provides kprintln! and kprint! */
 #[macro_use]
 mod debug;
@@ -48,7 +53,8 @@ pub extern fn kmain()
     /* initialize physical memory */
     hardware::physmem::init().ok().expect("failed during physical mem init");
 
-
+    /* initialize hypervisor */
+    hardware::hv::init().ok().expect("failed during hypervisor init");
 
     kprintln!("\nHalting kernel...");
 }

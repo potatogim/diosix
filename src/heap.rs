@@ -98,6 +98,22 @@ macro_rules! kfree
     ($addr:expr) => ($crate::heap::KERNEL.lock().free($addr))
 }
 
+/* plug our allocation and deallocation routines so other crates
+ * and modules (like Box) can use it abstractly. */
+#[lang = "exchange_malloc"]
+unsafe fn allocate(size: usize, _align: usize) -> *mut u8
+{
+    /* TODO: Don't panic if kalloc() fails. Should block instead
+     * and wait for some memory to become available. */
+    return kalloc!(size).ok().expect("allocate failed!");
+}
+
+#[lang = "exchange_free"]
+unsafe fn deallocate(ptr: *mut u8, _size: usize, _align: usize)
+{
+    kfree!(ptr);
+}
+
 impl Heap
 {
     /* top_up_free_pool

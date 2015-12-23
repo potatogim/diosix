@@ -2,12 +2,17 @@
 ;
 ; Continue booting an x86 machine in 64-bit long mode
 ;
+; Rust-Asm ABI reference: http://x86-64.org/documentation/abi.pdf
+;
 ; Maintainer: Chris Williams (diosix.org)
 ;
 
 global start64
 global serial_write_byte
 global tidy_boot_pg_tables
+
+global get_vmx_revision
+global vmxon
 
 extern kmain	; kernel entry point
 
@@ -78,6 +83,8 @@ IA32_VMX_CR0_MASK 	equ 0x487 ; any of these bits in cr0 are allowable
 IA32_VMX_CR4_REQUIRED   equ 0x488 ; ... as for cr0
 IA32_VMX_CR4_MASK	equ 0x489 ; ... as for cr0
 
+IA32_VMX_BASIC          equ 0x480 ; revision ID number for the CPU's VT-x implmentation
+
 enable_vmx:
   ; the CPU kindly tells us which bits we need to set in cr0 and
   ; cr4 to enable vmx support. it also tells us which bits cannot
@@ -120,6 +127,46 @@ enable_vmx:
   mov cr4, rbx
 
   ret
+
+
+; -------------------------------------------------------------------
+;
+; get_vmx_revision
+;
+; Ask the CPU for the current VMX revision so data structures
+; passed to the processor are accepted.
+; <= rax = revision number
+; Corrupts rcx, rdx. All other registers preserved.
+; Safe to call from Rust.
+;
+get_vmx_revision:
+  mov rcx, IA32_VMX_BASIC
+  rdmsr	; result in edx:eax - but we only care about eax
+  ret
+
+
+; -------------------------------------------------------------------
+;
+; vmxon
+;
+; Execute the instruction VMXON.
+; => rdi = physical address of VMCS to pass to the CPU
+; Corrupts rax, rdx. All other registers preserved.
+; Safe to call from Rust.
+;
+vmxon:
+; disable the A20 gate line - because Intel said so :-(
+;  mov dx, 0x92
+;  in al, dx
+;  and al, 0xfd
+
+; mov dx, 0x92
+; out dx, al
+
+  ; now we're all clear
+; vmxon [rdi]
+  ret
+
 
 ; -------------------------------------------------------------------
 ;
@@ -323,4 +370,5 @@ serial_write_nl:
   mov rdi, 0x0a
   call serial_write_byte
   ret
+
 

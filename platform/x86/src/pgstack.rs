@@ -14,17 +14,6 @@ use errors::KernelInternalError;
 
 use ::hardware::physmem;
 
-/* define a couple of macros for grabbing physical memory */
-macro_rules! kalloc_phys_page
-{
-    () => ($crate::hardware::pgstack.SYSTEMSTACK.lock().pop())
-}
-
-macro_rules! kfree_phys_page
-{
-    ($addr:expr) => ($crate::hardware::pgstack.SYSTEMSTACK.lock().push($addr))
-}
-
 const PAGE_STACK_PHYS_START: usize = 4 * 1024 * 1024; /* start page stack at 4MB mark in physical memory */
 
 /* create a system-wide physical stack with a locking mechanism. */
@@ -170,7 +159,7 @@ impl PageStack
     /* pop
      *
      * Pop a 4K page's base physical address off the stack, if available.
-     * <= returns address or error code on failure.
+     * <= returns physical address or error code on failure.
      */
     pub fn pop(&mut self) -> Result<usize, KernelInternalError>
     {

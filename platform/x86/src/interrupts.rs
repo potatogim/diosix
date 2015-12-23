@@ -177,10 +177,7 @@ pub extern "C" fn kernel_interrupt_handler(stack: interrupted_thread_registers)
         let err = stack.error_code;
         let cr2: u64;
 
-        unsafe
-        {
-            asm!("mov %cr2, %rax" : "={rax}"(cr2));
-        }
+        unsafe{ asm!("mov %cr2, %rax" : "={rax}"(cr2)); }
 
         kprintln!("[x86] CPU exception {}: rip = {:x} fault addr = {:x}", stack.interrupt_number, rip, cr2);
         kprintln!("      rax = {:x}", rax);

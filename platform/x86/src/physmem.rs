@@ -266,3 +266,9 @@ pub fn return_page(virt: usize) -> Result<(), KernelInternalError>
     Ok(())
 }
 
+/* phys_to_kernel - convert a physical RAM address to a kernel virtual address */
+pub fn phys_to_kernel(phys: usize) -> usize
+{
+    phys + KERNEL_VIRTUAL_UPPER_BASE 
+}
+

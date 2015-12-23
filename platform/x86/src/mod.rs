@@ -24,4 +24,5 @@ mod pgstack;
 /* can be called from the portable kernel */
 pub mod physmem;
 pub mod interrupts;
+pub mod hv;
 
