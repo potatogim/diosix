@@ -71,20 +71,19 @@ halt:
 
 ; -------------------------------------------------------------------
 ;
-; enable_vmx 
-;
-; Flip all the bits needed to switch on Intel's virtualization
-; extensoons (VMX / VT-x)
-;
-
 ; define special purpose registers needed to access VMX requirements
+;
+IA32_VMX_BASIC          equ 0x480 ; revision ID number for the CPU's VT-x implmentation
 IA32_VMX_CR0_REQUIRED	equ 0x486 ; these bits in cr0 must be set
 IA32_VMX_CR0_MASK 	equ 0x487 ; any of these bits in cr0 are allowable
 IA32_VMX_CR4_REQUIRED   equ 0x488 ; ... as for cr0
 IA32_VMX_CR4_MASK	equ 0x489 ; ... as for cr0
 
-IA32_VMX_BASIC          equ 0x480 ; revision ID number for the CPU's VT-x implmentation
-
+; enable_vmx 
+;
+; Flip all the bits needed to switch on Intel's virtualization
+; extensoons (VMX / VT-x)
+;
 enable_vmx:
   ; the CPU kindly tells us which bits we need to set in cr0 and
   ; cr4 to enable vmx support. it also tells us which bits cannot
@@ -129,8 +128,6 @@ enable_vmx:
   ret
 
 
-; -------------------------------------------------------------------
-;
 ; get_vmx_revision
 ;
 ; Ask the CPU for the current VMX revision so data structures
@@ -145,8 +142,10 @@ get_vmx_revision:
   ret
 
 
-; -------------------------------------------------------------------
-;
+IA32_FEATURE_CONTROL		equ 0x03a ; controls VMX and SMX operations
+IA32_LOCK_BIT			equ 0	  ; bit 0 of IA32_FEATURE_CONTROL
+IA32_ENABLE_VMX_OUTSIDE_SMX 	equ 2	  ; bit 2 of IA32_FEATURE_CONTROL
+
 ; vmxon
 ;
 ; Execute the instruction VMXON.
@@ -155,16 +154,32 @@ get_vmx_revision:
 ; Safe to call from Rust.
 ;
 vmxon:
+; we must set bit 2 and 0 to enable VMX and lock out further changes.
+; we can only change bit 2 if bit 0 is clear. so do that first then
+; flip bit 0 to 1.
+  mov rcx, IA32_FEATURE_CONTROL
+  rdmsr	; MSR copied into edx:eax
+
+; are VMX instructions enabled outside SMX? if not, enable them
+  bt eax, IA32_ENABLE_VMX_OUTSIDE_SMX
+  jc .set_lock_bit	; yes, so set the lock bit
+  or eax, 1 << IA32_ENABLE_VMX_OUTSIDE_SMX 
+
+.set_lock_bit:
+  bt eax, IA32_LOCK_BIT
+  jc .lock_bit_done	; don't write to the MSR if it's locked
+  or eax, 1 << IA32_LOCK_BIT
+  wrmsr			; set the lock bit
+
+.lock_bit_done:
+
 ; disable the A20 gate line - because Intel said so :-(
-;  mov dx, 0x92
-;  in al, dx
-;  and al, 0xfd
+  mov al, 0xdf	; command 0xdf = disable a20 (0xdd to enable)
+  out 0x64, al	; send command to keyboard controller
 
-; mov dx, 0x92
-; out dx, al
+; now we're all clear
+  vmxon [rdi]
 
-  ; now we're all clear
-; vmxon [rdi]
   ret
 
 
