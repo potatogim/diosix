@@ -19,6 +19,8 @@ pub enum KernelInternalError
     HeapBadAllocReq, /* can't allocate requested memory (probably too big) */
     HeapBadFreeReq, /* can't deallocate memory (probably passed a bad pointer) */
 
+    HVInitFailed, /* Hypervisor initialization failed */
+
     NoPhysPgAvailable, /* no physical page addresses available */
 
     Pg4KTablePresent, /* a 4KB page table is present (colliding with 2M page map request) */

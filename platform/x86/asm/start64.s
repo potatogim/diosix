@@ -11,7 +11,6 @@ global start64
 global serial_write_byte, serial_write_hex
 global tidy_boot_pg_tables
 
-global get_vmx_revision
 global vmxon
 
 extern kmain	; kernel entry point
@@ -68,6 +67,12 @@ halt:
   hlt
   jmp $
 
+; alert to a failure before early boot memory map changes, causing
+; the text mode video memory to be mapped elsewhere
+pre_kernel_halt:
+  mov rax, 0x0c6c0c690c610c46
+  mov qword [0xb8000 + (4 * 160)], rax
+  jmp halt
 
 ; -------------------------------------------------------------------
 ;
@@ -125,6 +130,29 @@ enable_vmx:
   and rbx, rax	; clear any banned flag bits
   mov cr4, rbx
 
+; we must set bit 2 and 0 of IA32_FEATURE_CONTROL to enable VMX operations
+; and lock out further changes. we can only change bit 2 if bit 0 is
+; clear. so set bit 2 first then flip bit 0 to 1.
+  mov rcx, IA32_FEATURE_CONTROL
+  rdmsr	; MSR copied into edx:eax - the bits we need are in eax
+
+; is the lock bit already set?
+  bt eax, IA32_LOCK_BIT
+  jnc .enable_vmx_operations	; no -> make changes then lock
+; uh-oh, the BIOS has locked us out, but if bit 2 (ENABLE_VMX) is
+; set then this part of the setup has been done for us already
+  bt eax, IA32_ENABLE_VMX_OUTSIDE_SMX
+  jc .lock_bit_done		; ENABLE_VMX set -> no changes needed
+  jmp pre_kernel_halt		; we can't enable VMX :(
+
+.enable_vmx_operations:
+  or eax, 1 << IA32_ENABLE_VMX_OUTSIDE_SMX
+  wrmsr			; enable VMX operations
+
+  or eax, 1 << IA32_LOCK_BIT
+  wrmsr			; > > > Changes lockout < < <
+
+.lock_bit_done:
   ret
 
 
@@ -133,12 +161,18 @@ enable_vmx:
 ; Ask the CPU for the current VMX revision so data structures
 ; passed to the processor are accepted.
 ; <= rax = revision number
-; Corrupts rcx, rdx. All other registers preserved.
+; All other registers preserved.
 ; Safe to call from Rust.
 ;
 get_vmx_revision:
+  push rcx
+  push rdx
+  
   mov rcx, IA32_VMX_BASIC
   rdmsr	; result in edx:eax - but we only care about eax
+  
+  pop rdx
+  pop rcx
   ret
 
 
@@ -148,38 +182,40 @@ IA32_ENABLE_VMX_OUTSIDE_SMX 	equ 2	  ; bit 2 of IA32_FEATURE_CONTROL
 
 ; vmxon
 ;
-; Execute the instruction VMXON.
-; => rdi = physical address of VMCS to pass to the CPU
-; Corrupts rax, rdx. All other registers preserved.
+; Initialize a VMXON region and execute the instruction VMXON.
+; => rdi = physical address of VMXON region
+;    rsi = virtual address of VMXON region
+; <= rax = 0 for success, or 1 for failure
+; Corrupts rdx. All other registers preserved.
 ; Safe to call from Rust.
 ;
 vmxon:
-; we must set bit 2 and 0 to enable VMX and lock out further changes.
-; we can only change bit 2 if bit 0 is clear. so do that first then
-; flip bit 0 to 1.
-  mov rcx, IA32_FEATURE_CONTROL
-  rdmsr	; MSR copied into edx:eax
+; set up the VMXON region: store the revision number in the first
+; four bytes. Make sure bit 31 is clear.
+  call get_vmx_revision
+  and eax, 0x7fffffff
+  mov [rsi], rax
 
-; are VMX instructions enabled outside SMX? if not, enable them
-  bt eax, IA32_ENABLE_VMX_OUTSIDE_SMX
-  jc .set_lock_bit	; yes, so set the lock bit
-  or eax, 1 << IA32_ENABLE_VMX_OUTSIDE_SMX 
-
-.set_lock_bit:
-  bt eax, IA32_LOCK_BIT
-  jc .lock_bit_done	; don't write to the MSR if it's locked
-  or eax, 1 << IA32_LOCK_BIT
-  wrmsr			; set the lock bit
-
-.lock_bit_done:
 ; disable the A20 gate line - because Intel said so :-(
   mov al, 0xdf	; command 0xdf = disable a20 (0xdd to enable)
   out 0x64, al	; send command to keyboard controller
 
-; now we're all clear
-  vmxon [rdi]
-  
-  jmp $
+; now we're all clear to enable VMX root mode
+; stash the physical address into the stack and pass a pointer
+; to the stacked address to the VMX ON instruction
+  push rdi
+  vmxon [rsp]
+
+; check to see if it worked
+  jnc .success	; carry clear -> success, set = failure
+  mov rax, 1	; indicate failure to the caller
+  jmp .done
+
+; welcome to VMX root mode
+.success:
+  mov rax, 0	; indicate success to the caller
+.done:
+  add esp, 0x8	; fix up stack
   ret
 
 

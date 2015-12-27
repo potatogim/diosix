@@ -15,8 +15,7 @@ use ::hardware::physmem;
 
 extern
 {
-    fn get_vmx_revision() -> u32;
-    fn vmxon(phys_addr: usize);
+    fn vmxon(phys_addr: usize, virt_addr: *mut vmxon_region) -> u8;
 }
 
 /* this is 4K page, aligned to a 4K page boundary */
@@ -29,18 +28,17 @@ struct vmxon_region
 pub fn init() -> Result<(), KernelInternalError>
 {
     let vmxon_phys_base = try!(pgstack::SYSTEMSTACK.lock().pop());
-    let mut vmxon_virt_base = physmem::phys_to_kernel(vmxon_phys_base) as *mut vmxon_region;
+    let vmxon_virt_base = physmem::phys_to_kernel(vmxon_phys_base) as *mut vmxon_region;
 
     kprintln!("[hv] vmxon region: physical {:x} virtual {:p}", vmxon_phys_base, vmxon_virt_base);
 
-    /* store the revision in the base of the structure and give the physical base to the processor */
-    unsafe
+    /* do the low-level VM management setup */
+    if unsafe{ vmxon(vmxon_phys_base, vmxon_virt_base) } != 0
     {
-        (*vmxon_virt_base).revision = get_vmx_revision();
-        vmxon(vmxon_phys_base);
+        return Err(KernelInternalError::HVInitFailed);
     }
 
-    kprintln!("[hv] still here!");
+    kprintln!("[hv] Now running in VMX root mode");
 
     Ok(())
 }
