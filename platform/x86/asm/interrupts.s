@@ -11,6 +11,7 @@ global boot_idt
 
 extern gdt.kdata
 extern kernel_interrupt_handler
+extern serial_write_byte, serial_write_hex
 
 section .text
 bits 64
@@ -29,7 +30,7 @@ bits 64
 %macro interrupt_entry 1
   global interrupt_%1_handler
   interrupt_%1_handler:
-    push 0			; push a dummy value
+    push 0			; push a dummy value for the error value
     push byte %1		; push the interrupt number
     jmp interrupt_to_kernel
 %endmacro
@@ -121,6 +122,7 @@ interrupt_to_kernel:
   
   mov ax, ds
   push rax			; preserve ds
+  push 0			; align this point in the stack to 16-byte boundary
 
   mov ax, gdt.kdata		; kernel data segment
   mov ds, ax			; select this segment
@@ -130,6 +132,7 @@ interrupt_to_kernel:
   mov rdi, rsp			; give Rust kernel visibility to interrupted state
   call kernel_interrupt_handler
 
+  pop rax			; discard the stack alignment word
   pop rax
   mov ds, ax
   mov ss, ax
@@ -154,6 +157,7 @@ interrupt_to_kernel:
 
   add rsp, 16			; fix up the stack for the two 64-bit words pushed on entry
   iretq
+
 
 section .rodata
 

@@ -8,7 +8,7 @@
 ;
 
 global start64
-global serial_write_byte
+global serial_write_byte, serial_write_hex
 global tidy_boot_pg_tables
 
 global get_vmx_revision
@@ -172,14 +172,14 @@ vmxon:
   wrmsr			; set the lock bit
 
 .lock_bit_done:
-
 ; disable the A20 gate line - because Intel said so :-(
   mov al, 0xdf	; command 0xdf = disable a20 (0xdd to enable)
   out 0x64, al	; send command to keyboard controller
 
 ; now we're all clear
   vmxon [rdi]
-
+  
+  jmp $
   ret
 
 
@@ -373,7 +373,7 @@ serial_write_hex:
 
   cmp cx, 0
   jnz .write_hex_loop
-  jmp serial_write_nl
+  jmp serial_write_nl	; inserts newline and returns from call
 
 .hex_table:
   db "0123456789abcdef"
