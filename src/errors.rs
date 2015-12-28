@@ -25,5 +25,7 @@ pub enum KernelInternalError
 
     Pg4KTablePresent, /* a 4KB page table is present (colliding with 2M page map request) */
     PgStackFull, /* page stack is full */
+
+    VMInitFailed, /* failed to initialize guest virtual machine */
 }
 
