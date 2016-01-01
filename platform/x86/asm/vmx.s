@@ -95,26 +95,6 @@ enable_vmx:
   ret
 
 
-; get_vmx_revision
-;
-; Ask the CPU for the current VMX revision so data structures
-; passed to the processor are accepted.
-; <= rax = revision number
-; All other registers preserved.
-; Safe to call from Rust.
-;
-get_vmx_revision:
-  push rcx
-  push rdx
-  
-  mov rcx, IA32_VMX_BASIC
-  rdmsr	; result in edx:eax - but we only care about eax
-  
-  pop rdx
-  pop rcx
-  ret
-
-
 IA32_FEATURE_CONTROL		equ 0x03a ; controls VMX and SMX operations
 IA32_LOCK_BIT			equ 0	  ; bit 0 of IA32_FEATURE_CONTROL
 IA32_ENABLE_VMX_OUTSIDE_SMX 	equ 2	  ; bit 2 of IA32_FEATURE_CONTROL
@@ -131,9 +111,7 @@ IA32_ENABLE_VMX_OUTSIDE_SMX 	equ 2	  ; bit 2 of IA32_FEATURE_CONTROL
 vmxon:
 ; set up the VMXON region: store the revision number in the first
 ; four bytes. Make sure bit 31 is clear.
-  call get_vmx_revision
-  and eax, 0x7fffffff
-  mov [rsi], rax
+  call region_revision_write	; uses rsi for virt address
 
 ; disable the A20 gate line - because Intel said so :-(
   mov al, 0xdf	; command 0xdf = disable a20 (0xdd to enable)
@@ -141,7 +119,7 @@ vmxon:
 
 ; now we're all clear to enable VMX root mode
 ; stash the physical address into the stack and pass a pointer
-; to the stacked address to the VMX ON instruction
+; to the stacked address to the VMXON instruction
   push rdi
   vmxon [rsp]
 
@@ -157,6 +135,10 @@ vmxon:
   add esp, 0x8	; fix up stack
   ret
 
+
+; vmread/wmwrite offsets
+
+
 ; vmx_init_vcms
 ;
 ; Initialize a guest VM's VCMS region.
@@ -167,7 +149,70 @@ vmxon:
 ; Safe to call from Rust.
 ;
 vmx_init_vcms:
-  mov rax, 0
+  mov rdx, 0
+.zero_vcms:
+  mov qword [rsi + rdx], 0x0
+  add rdx, 0x8
+  cmp rdx, 512	; clear a 512 x 8 = 4096 byte page
+  jb .zero_vcms
+
+  ; initialize region for a new guest
+  call region_revision_write	; uses rsi for virt address
+  push rdi
+  vmclear [rsp]
+  add rsp, 0x8			; fix up stack
+
+  ; select the guest as the active VCMS region so we can
+  ; perform vmread/vmwrite operations on it
+  call region_revision_write	; ensure revision word is in there
+  call vmx_select_guest		; uses rdi for phys address
+
+  mov rax, 0			; indicate success to caller
   ret
 
+; vmx_select_guest
+; 
+; Select a guest for vmread/vmwrite ops
+; => rdi = physical address of VCMS region
+; All registers preserved.
+; Safe to call from Rust.
+;
+vmx_select_guest:
+  push rdi
+  vmptrld [rsp]			; use pointer to phys address
+  add esp, 0x8			; fix up stack
+  ret
 
+; get_vmx_revision
+;
+; Ask the CPU for the current VMX revision so data structures
+; passed to the processor are accepted.
+; <= rax = revision number
+; All other registers preserved.
+;
+get_vmx_revision:
+  push rcx
+  push rdx
+  
+  mov rcx, IA32_VMX_BASIC
+  rdmsr	; result in edx:eax - but we only care about eax
+  
+  pop rdx
+  pop rcx
+  ret
+
+; region_revision_write
+; 
+; Write the VMX revision to a given region's base address
+; => rsi = virtual kernel address of the VMX region's base
+; All registers preserved.
+;
+region_revision_write:
+  push rax
+  call get_vmx_revision	; eax = VMX revision from the CPU
+  
+  and eax, 0x7fffffff	; mask out bit 31 as per Intel's instructions
+  mov [rsi], rax	; write the revision code to the region's first four bytes
+
+  pop rax
+  ret

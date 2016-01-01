@@ -1,7 +1,7 @@
 /*
  * diosix microkernel 'menchi'
  *
- * Providea hypervisor using Intel Virtualization Extensions on x86 systems
+ * Provide a hypervisor using Intel Virtual Machine Extensions on x86 systems
  *
  * See Chapter 23 onwards in Volume 3C of the Intel SDM.
  *
@@ -42,6 +42,13 @@ trait VMXRegion: Sized /* Sized needed for the Result<Self, ...> return type */
 /* manage a VMXON region */
 impl VMXRegion for ::Box<VMXONRegion>
 {
+    /* new
+     *
+     * Allocate a 4K physical page for a per-processor VMXON region,
+     * initialize it and enter VMX root mode, then return an object
+     * for this region.
+     * <= box pointer for region object, or error code on failure
+     */
     fn new() -> Result<::Box<VMXONRegion>, KernelInternalError>
     {
         let phys_base = try!(pgstack::SYSTEMSTACK.lock().pop());
@@ -49,7 +56,7 @@ impl VMXRegion for ::Box<VMXONRegion>
 
         if unsafe{ vmxon(phys_base, virt_base) } != 0
         {
-            try!(pgstack::SYSTEMSTACK.lock().push(phys_base));
+            try!(pgstack::SYSTEMSTACK.lock().push(phys_base)); /* don't forget to clean up */
             return Err(KernelInternalError::HVInitFailed);
         }
 
@@ -62,6 +69,12 @@ impl VMXRegion for ::Box<VMXONRegion>
 /* manage a guest's VCMS region */ 
 impl VMXRegion for ::Box<VMGuestRegion>
 {
+    /* new
+     *
+     * Allocate a 4K physical page for a per-guest VCMS region,
+     * initialize it, then return an object for this region.
+     * <= box pointer for region object, or error code on failure
+     */
     fn new() -> Result<::Box<VMGuestRegion>, KernelInternalError>
     {
         let phys_base = try!(pgstack::SYSTEMSTACK.lock().pop());
@@ -69,7 +82,7 @@ impl VMXRegion for ::Box<VMGuestRegion>
 
         if unsafe{ vmx_init_vcms(phys_base, virt_base) } != 0
         {
-            try!(pgstack::SYSTEMSTACK.lock().push(phys_base));
+            try!(pgstack::SYSTEMSTACK.lock().push(phys_base)); /* don't forget to clean up */
             return Err(KernelInternalError::VMInitFailed);
         }
 

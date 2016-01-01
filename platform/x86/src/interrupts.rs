@@ -180,6 +180,7 @@ pub extern "C" fn kernel_interrupt_handler(stack: interrupted_thread_registers)
         kprintln!("      rip = {:x}", stack.rip);
         kprintln!("      rax = {:x} rbx = {:x} rcx = {:x} rdx = {:x}", stack.rax, stack.rbx, stack.rcx, stack.rdx);
         kprintln!("      rbp = {:x} rsi = {:x} rdi = {:x}", stack.rbp, stack.rsi, stack.rdi);
+        kprintln!("      rsp = {:x}", stack.rsp);
         kprintln!("      err = {:x}", stack.error_code);
         kprintln!("      cr2 = {:x}", cr2);
 
