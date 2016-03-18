@@ -141,7 +141,7 @@ vmxon:
 
 ; vmx_init_vcms
 ;
-; Initialize a guest VM's VCMS region.
+; Initialize a guest VM's VCMS region. Assumes the region is 4K in size.
 ; => rdi = physical address of VCMS region
 ;    rsi = virtual address of VCMS region
 ; <= rax = 0 for success, or 1 for failure
@@ -149,6 +149,7 @@ vmxon:
 ; Safe to call from Rust.
 ;
 vmx_init_vcms:
+; zero VCMS
   mov rdx, 0
 .zero_vcms:
   mov qword [rsi + rdx], 0x0
@@ -166,6 +167,8 @@ vmx_init_vcms:
   ; perform vmread/vmwrite operations on it
   call region_revision_write	; ensure revision word is in there
   call vmx_select_guest		; uses rdi for phys address
+
+  
 
   mov rax, 0			; indicate success to caller
   ret
