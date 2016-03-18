@@ -146,6 +146,7 @@ test_x86_64_present:
   cmp eax, 0x80000001	; if eax isn't >0x80000000 then no extended functions
   jb .no_x86_64		; and no extended functions means no long mode
   mov eax, 0x80000001   ; get the supported extended functions bitmask
+  cpuid
   test edx, 1 << 29	; check if bit 29 (long mode) is set
   jz .no_x86_64		; if not, then it isn't available so bail out
   ret			; if yes, then let's go
